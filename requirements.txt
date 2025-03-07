@@ -1,0 +1,6 @@
+langgraph==0.3.5
+streamlit==1.43.0
+python-dotenv==1.0.1
+langchain_gigachat==0.3.4
+langchain_community==0.3.19
+tavily-python==0.5.1
