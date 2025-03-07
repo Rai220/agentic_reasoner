@@ -35,6 +35,7 @@ REASONER_TEMPLATE = """Ты - агент-аналитик, который обд
 Как ты можешь ответить на него наилучшим образом?
 Что именно нужно пользователю? Этот ли вопрос он на самом деле хотел задать? Напиши свои мысли по этим вопросам.
 Учти, что у тебя будет возможность воспользоваться поиском в интернете, так что учитывай это при планировании. Но не ищи в интернете в ситуации, если ты сам знаешь ответ.
+Если для ответа на вопрос требуется узнать актуальные данные, то воспользуйся поиском, так твои знания могут не содержать информации о последних событиях.
 
 Вопрос пользователя - {user_question}
 """
@@ -263,10 +264,10 @@ def finalize(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state["user_question"],
-            "last_reason": state["last_reason"],
-            "critique": state["critique"],
-            "last_answer": state["last_answer"],
+            "user_question": state.get("user_question", None),
+            "last_reason": state.get("last_reason", None),
+            "critique": state.get("critique", None),
+            "last_answer": state.get("last_answer", None),
             "search_results": state.get("search_results", {})
         }
     )
