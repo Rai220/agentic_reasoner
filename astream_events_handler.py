@@ -28,8 +28,17 @@ async def invoke_our_graph(st_messages, st_placeholder):
 
         node = event['metadata'].get('langgraph_node', None)
         if last_node != node:
+            if last_node not in [START, END, None, "None"]:
+                final_text += f"""
+<\{last_node}>
+
+"""
             if node not in [START, END, None, "None"]:
-                final_text += f"\n\n{node}\n---\n"
+                final_text += f"""
+
+<{node}>
+
+"""
         last_node = node
 
         if kind == "on_chat_model_stream":
