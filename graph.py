@@ -243,7 +243,6 @@ def critique(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 final
     )
     new_critique_str = res.critique
     final_decision = res.final_decision
-    critique = res.critique
     search_query = res.search_query
     is_new_critique = res.is_new_critique
     search_mode = res.search_mode
@@ -251,9 +250,7 @@ def critique(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 final
     critique = state.get("critique", [])
     if critique is None:
         critique = []
-    if is_new_critique:
-        critique.append(new_critique_str)
-
+    critique.append(new_critique_str)
 
     update = {"final_decision": final_decision, 
               "critique": critique, 
