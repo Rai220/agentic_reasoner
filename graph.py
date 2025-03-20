@@ -215,6 +215,11 @@ CRITIQUE_TEMPLATE = MAIN_TEMPLATE + """Думай как агент-критик
 </OLD_CRITIQUE>
 Не давай больше трех итераций критики, чтобы не затягивать ответ.
 
+Предыдущие поисковые запросы (если есть):
+<OLD_SEARCH_QUERY>
+{old_search_query}
+</OLD_SEARCH_QUERY>
+
 Результаты поиска (если есть):
 <SEARCH_RESULTS>
 {search_results}
@@ -238,6 +243,7 @@ def critique(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 final
             "last_reason": state["last_reason"],
             "last_answer": state["last_answer"],
             "critique": state.get("critique", []),
+            "old_search_query": state.get("search_query", ""),
             "search_results": state.get("search_results", {})
         }
     )
@@ -260,7 +266,8 @@ def critique(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 final
     goto = "🏁 finalizing"
 
     if final_decision == "search" and search_query is not None and len(search_query) > 0:
-        goto = "🔍 Searcher"
+        if len(critique) <= 3:
+            goto = "🔍 Searcher"
         
     if final_decision == "fix":
         if is_new_critique and len(critique) <= 3:
