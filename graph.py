@@ -11,6 +11,7 @@ import time
 from typing_extensions import TypedDict
 from langchain_core.messages.tool import ToolMessage
 from typing import Optional, Literal
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 class GraphsState(MessagesState):
     last_reason: Optional[str] = ""
@@ -317,7 +318,7 @@ def finalize(state: GraphsState):
         }
     )
 
-    return {"messages": res}
+    return {"messages":  AIMessage(content=res)}
 
 def search(state: GraphsState):
     tavily_client = TavilyClient()
@@ -331,7 +332,10 @@ def search(state: GraphsState):
 
     search_results = state.get("search_results", {})
     search_results[state["search_query"]] = response
-    return {"search_results": search_results, "messages": ToolMessage(tool_call_id="1", name="🔍 Searcher", content="Searching...")}
+    return {"search_results": search_results, 
+            "messages": ToolMessage(tool_call_id="1", 
+                                    name="🔍 Searcher", 
+                                    content=f"Searching... query: {state['search_query']}, mode: {search_mode}")}
 
 
 graph.add_node("🤔 thinking", reason)
