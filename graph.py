@@ -8,17 +8,18 @@ from langgraph.types import Command
 from typing import List, Dict
 from tavily import TavilyClient
 import time
+from typing_extensions import TypedDict
+from langchain_core.messages.tool import ToolMessage
+from typing import Optional, Literal
 
 class GraphsState(MessagesState):
-    last_reason: str = ""
-    user_question: str = ""
-    last_answer: str = ""
-    critique: List[str] = []
-    final_decision: str = ""
-    final_answer: str = ""
-    search_query: str = ""
-    search_mode: str = ""
-    search_results: Dict = {}
+    last_reason: Optional[str] = ""
+    last_answer: Optional[str] = ""
+    critique: Optional[List[str]] = []
+    final_decision: Optional[str] = ""
+    search_query: Optional[str] = ""
+    search_mode: Optional[str] = ""
+    search_results: Optional[Dict] = {}
 
 graph = StateGraph(GraphsState)
 
@@ -52,7 +53,11 @@ REASONER_TEMPLATE = MAIN_TEMPLATE + """Думай как аналитик, ко�
 Вопрос пользователя - {user_question}
 """
 
-def reason(state: GraphsState):
+def _get_user_question(state):
+    return state["messages"][-1].content
+    
+
+def reason(state: GraphsState):    
     prompt = ChatPromptTemplate.from_messages([
         ("system", REASONER_TEMPLATE)
     ])
@@ -61,11 +66,20 @@ def reason(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state['user_question'],
+            "user_question": _get_user_question(state)
         }
     )
 
-    return {"last_reason": res}
+    return {"last_reason": res,
+            "messages": ToolMessage(tool_call_id="1", name="🤔 thinking", content=res),
+            "last_answer": "",
+            "critique": [],
+            "final_decision": "",
+            "search_query": "",
+            "search_mode": "",
+            "search_results": {}
+    }
+            
 
 
 class FirstStep(BaseModel):
@@ -94,7 +108,7 @@ FIRST_STEP_TEMPLATE = MAIN_TEMPLATE + """Думай как агент-коорд
 {format_instructions}"""
 
 
-def first_step(state: GraphsState):
+def first_step(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 finalizing", "👨 answering"]]:
     parser = PydanticOutputParser(pydantic_object=FirstStep)
     prompt = ChatPromptTemplate.from_messages([
         ("system", FIRST_STEP_TEMPLATE)
@@ -104,14 +118,16 @@ def first_step(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state["user_question"],
+            "user_question": _get_user_question(state),
             "last_reason": state["last_reason"],
         }
     )
 
     final_decision = res.final_decision
     search_query = res.search_query
-    update = {"final_decision": final_decision, "search_query": search_query}
+    update = {"final_decision": final_decision, 
+              "search_query": search_query,
+              "messages": ToolMessage(tool_call_id="1", name="1️⃣ first step think", content=res)}
     goto = "🏁 finalizing"
 
     if final_decision == "search" and search_query is not None and len(search_query) > 0:
@@ -143,7 +159,7 @@ ANSWER_TEMPLATE = MAIN_TEMPLATE + """Думай как агент-помощни
 Теперь ответь пользователю:
 """
 
-def answer(state: GraphsState):
+def answer(state: GraphsState):    
     prompt = ChatPromptTemplate.from_messages([
         ("system", ANSWER_TEMPLATE)
     ])
@@ -152,13 +168,13 @@ def answer(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state["user_question"],
+            "user_question": _get_user_question(state),
             "last_reason": state["last_reason"],
             "search_results": state.get("search_results", {})
         }
     )
 
-    return {"last_answer": res}
+    return {"last_answer": res, "messages": ToolMessage(tool_call_id="1", name="👨 answering", content=res)}
 
 
 class Critique(BaseModel):
@@ -203,7 +219,7 @@ CRITIQUE_TEMPLATE = MAIN_TEMPLATE + """Думай как агент-критик
 {format_instructions}"""
 
 
-def critique(state: GraphsState):
+def critique(state: GraphsState) -> Command[Literal["🔍 Searcher", "🏁 finalizing", "👨 answering"]]:
     parser = PydanticOutputParser(pydantic_object=Critique)
     prompt = ChatPromptTemplate.from_messages([
         ("system", CRITIQUE_TEMPLATE)
@@ -213,7 +229,7 @@ def critique(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state["user_question"],
+            "user_question": _get_user_question(state),
             "last_reason": state["last_reason"],
             "last_answer": state["last_answer"],
             "critique": state.get("critique", []),
@@ -237,7 +253,8 @@ def critique(state: GraphsState):
     update = {"final_decision": final_decision, 
               "critique": critique, 
               "search_query": search_query, 
-              "search_mode": search_mode, }
+              "search_mode": search_mode, 
+              "messages": ToolMessage(tool_call_id="1", name="👨‍⚖️ self-criticque", content=res)}
     goto = "🏁 finalizing"
 
     if final_decision == "search" and search_query is not None and len(search_query) > 0:
@@ -292,7 +309,7 @@ def finalize(state: GraphsState):
 
     res = chain.invoke(
         {
-            "user_question": state.get("user_question", None),
+            "user_question": _get_user_question(state),
             "last_reason": state.get("last_reason", None),
             "critique": state.get("critique", None),
             "last_answer": state.get("last_answer", None),
@@ -300,7 +317,7 @@ def finalize(state: GraphsState):
         }
     )
 
-    return {"final_answer": res}
+    return {"messages": res}
 
 def search(state: GraphsState):
     tavily_client = TavilyClient()
@@ -314,7 +331,7 @@ def search(state: GraphsState):
 
     search_results = state.get("search_results", {})
     search_results[state["search_query"]] = response
-    return {"search_results": search_results}
+    return {"search_results": search_results, "messages": ToolMessage(tool_call_id="1", name="🔍 Searcher", content="Searching...")}
 
 
 graph.add_node("🤔 thinking", reason)

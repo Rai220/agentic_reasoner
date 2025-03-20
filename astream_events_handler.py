@@ -23,7 +23,7 @@ async def invoke_our_graph(st_messages, st_placeholder):
     last_node = None
 
     # Stream events from the graph_runnable asynchronously
-    async for event in graph_runnable.astream_events({"user_question": st_messages[-1].content}, version="v2"):
+    async for event in graph_runnable.astream_events({"messages": st_messages}, version="v2"):
         kind = event["event"]  # Determine the type of event received
 
         node = event['metadata'].get('langgraph_node', None)

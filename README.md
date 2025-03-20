@@ -9,3 +9,9 @@ To start localy:
 ```
 streamlit run app.py
 ```
+
+Для запуска в виде микросервиса:
+```
+pip install -U "langgraph-cli[inmem]"
+langgraph dev
+```
